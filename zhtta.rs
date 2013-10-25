@@ -80,8 +80,6 @@ fn main() {
                 match io::read_whole_file(tf.filepath) { // killed if file size is larger than memory size.
                     Ok(file_data) => {
                         println(fmt!("begin serving file [%?]", tf.filepath));
-                        // A web server should always reply a HTTP header for any legal HTTP request.
-                        //tf.stream.write("HTTP/1.1 200 OK\r\nContent-Type: application/octet-stream; charset=UTF-8\r\n\r\n".as_bytes());
                         
                         /*
                         let fileType = match tf.filepath.filetype() {
@@ -96,10 +94,9 @@ fn main() {
 
 
                         tf.stream.write(httpHeader.as_bytes());
-
+                        tf.stream.flush();
                         */
-                        
-                        //tf.stream.flush();
+
                         tf.stream.write(file_data);
                         println(fmt!("finish file [%?]", tf.filepath));
                     }
@@ -115,10 +112,7 @@ fn main() {
             port.recv(); // wait for arrving notification
             do take_vec.write |vec| {
                 if ((*vec).len() > 0) {
-                    // LIFO didn't make sense in service scheduling, so we modify it as FIFO by using shift_opt() rather than pop().
-                    //let tf_opt: Option<sched_msg> = (*vec).shift_opt();
-                    //let tf = tf_opt.unwrap();
-
+                    
                     //Since we are using a priority queue, we will use pop()
                     let tf = (*vec).pop();
                     println(fmt!("shift from queue, size: %ud", (*vec).len()));
@@ -199,39 +193,45 @@ fn main() {
 
                             let mut streamPriority: int = 0;
 
+                            //Retrieving the requesting IP address
                             let ipStr: ~str = match (stream).peer_name() {
                                 Some(pr) => pr.ip.to_str(),  
                                 None => ~"0.0.0.0"
                             };
 
+                            //Split the IP address by '.' so that we can compare
                             let ipSplit: ~[~str] = ipStr.split_iter('.').filter(|&x| x != "")
                                  .map(|x| x.to_owned()).collect();
 
+                            //Assign priority based on geography or if localhost
                             if ( (ipSplit[0] == ~"127" && ipSplit[1] == ~"0") || (ipSplit[0] == ~"128" && ipSplit[1] == ~"143")
                                 || (ipSplit[0] == ~"137" && ipSplit[1] == ~"54") ) {
 
                                 streamPriority = 1;
                             }
 
+                            
+                            //Get filetype in order to determine HTTP header type
                             let fileType = match file_path.filetype() {
                                 Some(s) => s,
                                 None => &""
                             };
 
+                            //In order to optimize for the benchmark, we will send the HTTP header quickly before adding to the queue
                             let httpHeader: ~str = match fileType {
                                 ".html" | ".htm" | ".php" => ~"HTTP/1.1 200 OK\r\nContent-Type: text/html; charset=UTF-8\r\n\r\n",
                                 _ => ~"HTTP/1.1 200 OK\r\nContent-Type: application/octet-stream; charset=UTF-8\r\n\r\n"
                             };
 
                             stream.write(httpHeader.as_bytes());
+                            stream.flush();
 
 
+                            //Retrieve file info for additional latency fixes
                             let fileInfo = match std::rt::io::file::stat(file_path) {
                                 Some(s) => s,
                                 None => fail!("Could not access file stats")
                             };
-
-
 
                             let msg: sched_msg = sched_msg{stream: Some(stream), filepath: file_path.clone(), topPriority: streamPriority, fileSize: fileInfo.size};
                             let (sm_port, sm_chan) = std::comm::stream();
