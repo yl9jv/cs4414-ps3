@@ -22,15 +22,21 @@ use std::{os, str, io};
 use extra::arc;
 use std::comm::*;
 use extra::priority_queue;
+use extra::md4;
+use extra::sort;
+use std::path;
 
 static PORT:    int = 4414;
 static IP: &'static str = "127.0.0.1";
+
+static MAX_CACHE_SIZE_BYTES: u64 = 50000000;
 
 struct sched_msg {
     stream: Option<std::rt::io::net::tcp::TcpStream>,
     filepath: ~std::path::PosixPath,
     topPriority: int,
     fileSize: u64
+
 }
 
 impl Ord for sched_msg {
@@ -55,6 +61,39 @@ impl Ord for sched_msg {
     }
 }
 
+struct cache_item {
+    name: ~str,
+    in_use_flag: bool,
+    ssi_flag: bool,
+    hash: ~str,
+    data: ~[u8],
+    count: uint,
+    size: u64
+
+}
+
+impl cache_item {
+    fn le(&self, other: &cache_item) -> bool {
+        let mut retVal:bool = false;
+
+        if(self.count <= other.count) {
+            retVal = true;
+        }
+
+        retVal
+    }
+}
+
+fn le(this: &cache_item, other: &cache_item) -> bool {
+        let mut retVal:bool = false;
+
+        if(this.count <= other.count) {
+            retVal = true;
+        }
+
+        retVal
+    }
+
 fn main() {
     //let req_vec: ~[sched_msg] = ~[];
     let req_vec: ~priority_queue::PriorityQueue<sched_msg> = ~priority_queue::PriorityQueue::new();
@@ -67,6 +106,78 @@ fn main() {
 
     let safe_count: ~[uint] = ~[0];
     let shared_visit = arc::RWArc::new(safe_count);
+
+    let cache_list: ~[cache_item] = ~[];
+    let shared_cache_list = arc::RWArc::new(cache_list);
+
+    let clone_cache = shared_cache_list.clone();
+
+    //CACHE MANAGER
+    do spawn {
+
+        loop {
+            do clone_cache.write |vec| {
+
+                sort::quick_sort((*vec), le);
+
+                let mut cache_remaining = MAX_CACHE_SIZE_BYTES;
+
+                for i in range(0, (*vec).len()) {
+
+                    if((*vec)[i].size <= cache_remaining && !(*vec)[i].in_use_flag) {
+
+                        let curr_path = ~path::Path((*vec)[i].name);
+
+                        if os::path_exists(curr_path) {
+
+                            let fileInfo = match std::rt::io::file::stat(curr_path) {
+                                Some(s) => s,
+                                None => fail!("Could not access file stats for cache")
+                            };
+
+                            if(fileInfo.size <= cache_remaining) {
+
+                                match io::read_whole_file(curr_path) {
+                                    Ok(file_data) => {
+
+                                        //NEED TO ADD CHECK IF IT HAS SSI
+                                        //PERHAPS EXCLUDE ALL SSI FROM CACHE?
+                                        //ADD TO IF: size < remaining, !in use, !ssi?
+
+                                        (*vec)[i].data = file_data.to_owned();
+                                        (*vec)[i].size = fileInfo.size;
+                                        (*vec)[i].hash = md4::md4_str(file_data);
+                                        (*vec)[i].in_use_flag = true;
+
+                                        cache_remaining = cache_remaining - fileInfo.size;
+
+
+                                    }
+                                    Err(err) => {
+                                        println("ERROR IN UPDATE CACHE");
+                                        println(err);
+                                    }
+
+                                }
+
+                            }
+                        }
+                    }
+                    else if((*vec)[i].size <= cache_remaining && (*vec)[i].in_use_flag) {
+                        cache_remaining = cache_remaining - (*vec)[i].size;
+                    }
+                    else if((*vec)[i].size > cache_remaining) {
+                        (*vec)[i].in_use_flag = false;
+                        (*vec)[i].data = ~[];
+                    }
+
+                }
+
+
+            }
+
+        }
+    }
     
     // dequeue file requests, and send responses.
     // FIFO
@@ -77,32 +188,96 @@ fn main() {
         do spawn {
             loop {
                 let mut tf: sched_msg = sm_port.recv(); // wait for the dequeued request to handle
-                match io::read_whole_file(tf.filepath) { // killed if file size is larger than memory size.
-                    Ok(file_data) => {
-                        println(fmt!("begin serving file [%?]", tf.filepath));
-                        
-                        /*
-                        let fileType = match tf.filepath.filetype() {
-                            Some(s) => s,
-                            None => &""
-                        };
 
-                        let httpHeader: ~str = match fileType {
-                            ".html" | ".htm" | ".php" => ~"HTTP/1.1 200 OK\r\nContent-Type: text/html; charset=UTF-8\r\n\r\n",
-                            _ => ~"HTTP/1.1 200 OK\r\nContent-Type: application/octet-stream; charset=UTF-8\r\n\r\n"
-                        };
+                //Check if file is in cache
+                //Will do so using RWArc
 
+                let mut serve_from_cache: bool = false;
 
-                        tf.stream.write(httpHeader.as_bytes());
-                        tf.stream.flush();
-                        */
+                do shared_cache_list.write |vec| {
 
-                        tf.stream.write(file_data);
-                        println(fmt!("finish file [%?]", tf.filepath));
-                    }
-                    Err(err) => {
-                        println("ERROR IN SEND");
-                        println(err);
+                    //if((*vec).len() > 0) {
+
+                        let mut found: bool = false;
+
+                        for i in range(0, (*vec).len()) {
+
+                            if( (*vec)[i].name == tf.filepath.to_str() && (*vec)[i].in_use_flag) {
+                                serve_from_cache = true;
+                                found = true;
+
+                                println(fmt!("===== SERVING FROM CACHE: %?", tf.filepath.to_str()));
+
+                                tf.stream.write((*vec)[i].data);
+
+                                (*vec)[i].count += 1;
+                            }
+                            else if( (*vec)[i].name == tf.filepath.to_str() && !(*vec)[i].in_use_flag) {
+                                (*vec)[i].count += 1;
+                                found = true;
+                            }
+                        }
+
+                        //If it isn't found, we will create a blank entry and enter basic info, and add the
+                        //data and md4 later
+                        if(!found) {
+
+                            println(fmt!("===== ADDING ITEM %?", tf.filepath.to_str()));
+
+                            let new_cache_item: cache_item = cache_item{name: tf.filepath.to_str(), in_use_flag: false, 
+                                ssi_flag: false, hash: ~"", data: ~[], count: 1, size: tf.fileSize};
+
+                            (*vec).push(new_cache_item);
+
+                        }
+                    //}
+                }
+
+                if(!serve_from_cache) {
+
+                    match io::read_whole_file(tf.filepath) { // killed if file size is larger than memory size.
+                        Ok(file_data) => {
+                            println(fmt!("begin serving file [%?]", tf.filepath));
+
+                            tf.stream.write(file_data);
+                            println(fmt!("finish file [%?]", tf.filepath));
+
+                            println(fmt!("===== SERVING FROM DISK: %?", tf.filepath.to_str()));
+
+                            /*
+
+                            let md4_val = md4::md4_str(file_data);
+
+                            do shared_cache_list.write |vec| {
+
+                                let mut found_flag: bool = false;
+
+                                for i in range(0, (*vec).len()) {
+
+                                    if( (*vec)[i].name == tf.filepath.to_str() ) {
+
+                                        println("=====FOUND NAME");
+
+                                        found_flag = true;
+
+                                        (*vec)[i].in_use_flag = true;
+                                        (*vec)[i].data = file_data.to_owned();
+                                        (*vec)[i].hash = md4_val.to_owned();
+                                    }
+                                }
+
+                                if(!found_flag) {
+                                    println(fmt!("===== DID NOT FIND NAME FOR %?", tf.filepath.to_str()));
+                                }
+                            }
+
+                            */
+
+                        }
+                        Err(err) => {
+                            println("ERROR IN SEND");
+                            println(err);
+                        }
                     }
                 }
             }
