@@ -36,8 +36,22 @@ Problem 3
 
 When a request is made, we access the file size via `rt::io::file::stat(file_path)`. We modified the `sched_msg` struct to include a field for file size. We then changed its comparator so that it first orders by IP address priority in order to satisfy Problem 2, but then modified it so that ties are ranked by file size. Smaller files (thus quicker to serve) are given a higher priority. 
 
+Problem 4
+=========
+
+Problem 5
+=========
+
+Need to address issues involving httperf segfault on Mac OS. 
+
 Problem 6
 =========
 
+Implemented. Need to elaborate. 
+
 Problem 7
 =========
+
++ Send header as soon as request is received. Currently gets file type by going to the HDD, perhaps can be modified so that it slices at the last '.' to avoid I/O overhead
++ Idea: Separate queue for cache and non-cache items
++ Idea: Optional command line argument to pass in cache size, cache refresh rate
