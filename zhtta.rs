@@ -30,6 +30,8 @@ static PORT:    int = 4414;
 static IP: &'static str = "127.0.0.1";
 
 static MAX_CACHE_SIZE_BYTES: u64 = 50000000;
+static CACHE_MANAGER_A_RATE: u64 = 2000;
+static CACHE_MANAGER_B_RATE: u64 = 6000;
 
 struct sched_msg {
     stream: Option<std::rt::io::net::tcp::TcpStream>,
@@ -95,7 +97,6 @@ fn le(this: &cache_item, other: &cache_item) -> bool {
     }
 
 fn main() {
-    //let req_vec: ~[sched_msg] = ~[];
     let req_vec: ~priority_queue::PriorityQueue<sched_msg> = ~priority_queue::PriorityQueue::new();
     let shared_req_vec = arc::RWArc::new(req_vec);
     let add_vec = shared_req_vec.clone();
@@ -110,13 +111,65 @@ fn main() {
     let cache_list: ~[cache_item] = ~[];
     let shared_cache_list = arc::RWArc::new(cache_list);
 
-    let clone_cache = shared_cache_list.clone();
+    let cache_manager_a = shared_cache_list.clone();
+    let cache_manager_b = shared_cache_list.clone();
 
-    //CACHE MANAGER
+    //CACHE UPDATE MANAGER (Manager B)
+    //This will handle making sure that items in the cache are up-to-date in case they are changed
     do spawn {
 
         loop {
-            do clone_cache.write |vec| {
+
+            do cache_manager_b.write |vec| {
+
+                for i in range(0, (*vec).len()) {
+
+                    //If it is in the cache and in use, we will check to see if the file has been updated
+                    if((*vec)[i].in_use_flag) {
+
+                        let curr_path = ~path::Path((*vec)[i].name);
+                        if os::path_exists(curr_path) {
+
+                            match io::read_whole_file(curr_path) {
+                                    Ok(file_data) => {
+
+                                        let temp_md4 = md4::md4_str(file_data.to_owned());
+
+                                        if(temp_md4 != (*vec)[i].hash)
+                                        {
+                                            let fileInfo = match std::rt::io::file::stat(curr_path) {
+                                                Some(s) => s,
+                                                None => fail!("Could not access file stats for cache")
+                                            };
+
+                                            println(fmt!("===== UPDATING FILE: %?", (*vec)[i].name));
+
+                                            (*vec)[i].data = file_data;
+                                            (*vec)[i].size = fileInfo.size;
+                                            (*vec)[i].hash = temp_md4;
+                                        }
+                                    }
+                                    Err(err) => {
+                                        println("ERROR IN UPDATE CACHE");
+                                        println(err);
+                                    }
+                                }
+                        }
+                    }
+                }
+            }
+
+            timer::sleep(CACHE_MANAGER_B_RATE);
+        }
+    }
+    
+
+
+    //MAIN CACHE MANAGER (Manager A)
+    do spawn {
+
+        loop {
+            do cache_manager_a.write |vec| {
 
                 sort::quick_sort((*vec), le);
 
@@ -175,6 +228,8 @@ fn main() {
 
 
             }
+
+            timer::sleep(CACHE_MANAGER_A_RATE);
 
         }
     }
@@ -237,10 +292,10 @@ fn main() {
 
                     match io::read_whole_file(tf.filepath) { // killed if file size is larger than memory size.
                         Ok(file_data) => {
-                            println(fmt!("begin serving file [%?]", tf.filepath));
+                            //println(fmt!("begin serving file [%?]", tf.filepath));
 
                             tf.stream.write(file_data);
-                            println(fmt!("finish file [%?]", tf.filepath));
+                            //println(fmt!("finish file [%?]", tf.filepath));
 
                             println(fmt!("===== SERVING FROM DISK: %?", tf.filepath.to_str()));
 
@@ -290,7 +345,7 @@ fn main() {
                     
                     //Since we are using a priority queue, we will use pop()
                     let tf = (*vec).pop();
-                    println(fmt!("shift from queue, size: %ud", (*vec).len()));
+                    //println(fmt!("shift from queue, size: %ud", (*vec).len()));
                     sm_chan.send(tf); // send the request to send-response-task to serve.
                 }
             }
@@ -344,11 +399,11 @@ fn main() {
                     let req_group : ~[&str]= request_str.splitn_iter(' ', 3).collect();
                     if req_group.len() > 2 {
                         let path = req_group[1];
-                        println(fmt!("Request for path: \n%?", path));
+                        //println(fmt!("Request for path: \n%?", path));
                         
                         let file_path = ~os::getcwd().push(path.replace("/../", ""));
                         if !os::path_exists(file_path) || os::path_is_dir(file_path) {
-                            println(fmt!("Request received:\n%s", request_str));
+                            //println(fmt!("Request received:\n%s", request_str));
                             let response: ~str = fmt!(
                                 "HTTP/1.1 200 OK\r\nContent-Type: text/html; charset=UTF-8\r\n\r\n
                                  <doctype !html><html><head><title>Hello, Rust!</title>
@@ -415,10 +470,10 @@ fn main() {
                             do child_add_vec.write |vec| {
                                 let msg = sm_port.recv();
                                 (*vec).push(msg); // enqueue new request.
-                                println("add to queue");
+                                //println("add to queue");
                             }
                             child_chan.send(""); //notify the new arriving request.
-                            println(fmt!("get file request: %?", file_path));
+                            //println(fmt!("get file request: %?", file_path));
                         }
                     }
                     println!("connection terminates")
