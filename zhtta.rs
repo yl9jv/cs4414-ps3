@@ -167,7 +167,8 @@ fn main() {
         loop {
             do cache_manager_a.write |vec| {
 
-                //Perhaps switch to a struct keeping a dict, so that we don't consume more memory?
+                //Quick sort sorts in-place, so we don't need to worry about memory overhead
+                //Just time overhead
                 sort::quick_sort((*vec), le);
 
                 let mut cache_remaining = MAX_CACHE_SIZE_BYTES;
@@ -327,6 +328,7 @@ fn main() {
         let child_chan = chan.clone();
         let child_add_vec = add_vec.clone();
         let child_arc = shared_visit.clone();
+
         do spawn {
 
             let mut actual_count:uint = 0;
