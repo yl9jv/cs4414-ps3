@@ -38,7 +38,6 @@ struct sched_msg {
     filepath: ~std::path::PosixPath,
     topPriority: int,
     fileSize: u64
-
 }
 
 impl Ord for sched_msg {
@@ -71,7 +70,6 @@ struct cache_item {
     data: ~[u8],
     count: uint,
     size: u64
-
 }
 
 impl cache_item {
@@ -162,8 +160,6 @@ fn main() {
             timer::sleep(CACHE_MANAGER_B_RATE);
         }
     }
-    
-
 
     //MAIN CACHE MANAGER (Manager A)
     do spawn {
@@ -171,6 +167,7 @@ fn main() {
         loop {
             do cache_manager_a.write |vec| {
 
+                //Perhaps switch to a struct keeping a dict, so that we don't consume more memory?
                 sort::quick_sort((*vec), le);
 
                 let mut cache_remaining = MAX_CACHE_SIZE_BYTES;
@@ -203,16 +200,12 @@ fn main() {
                                         (*vec)[i].in_use_flag = true;
 
                                         cache_remaining = cache_remaining - fileInfo.size;
-
-
                                     }
                                     Err(err) => {
                                         println("ERROR IN UPDATE CACHE");
                                         println(err);
                                     }
-
                                 }
-
                             }
                         }
                     }
@@ -225,12 +218,9 @@ fn main() {
                     }
 
                 }
-
-
             }
 
             timer::sleep(CACHE_MANAGER_A_RATE);
-
         }
     }
     
@@ -246,46 +236,42 @@ fn main() {
 
                 //Check if file is in cache
                 //Will do so using RWArc
-
                 let mut serve_from_cache: bool = false;
 
                 do shared_cache_list.write |vec| {
 
-                    //if((*vec).len() > 0) {
+                    let mut found: bool = false;
 
-                        let mut found: bool = false;
+                    for i in range(0, (*vec).len()) {
 
-                        for i in range(0, (*vec).len()) {
+                        if( (*vec)[i].name == tf.filepath.to_str() && (*vec)[i].in_use_flag) {
+                            serve_from_cache = true;
+                            found = true;
 
-                            if( (*vec)[i].name == tf.filepath.to_str() && (*vec)[i].in_use_flag) {
-                                serve_from_cache = true;
-                                found = true;
+                            println(fmt!("===== SERVING FROM CACHE: %?", tf.filepath.to_str()));
 
-                                println(fmt!("===== SERVING FROM CACHE: %?", tf.filepath.to_str()));
+                            tf.stream.write((*vec)[i].data);
 
-                                tf.stream.write((*vec)[i].data);
-
-                                (*vec)[i].count += 1;
-                            }
-                            else if( (*vec)[i].name == tf.filepath.to_str() && !(*vec)[i].in_use_flag) {
-                                (*vec)[i].count += 1;
-                                found = true;
-                            }
+                            (*vec)[i].count += 1;
                         }
-
-                        //If it isn't found, we will create a blank entry and enter basic info, and add the
-                        //data and md4 later
-                        if(!found) {
-
-                            println(fmt!("===== ADDING ITEM %?", tf.filepath.to_str()));
-
-                            let new_cache_item: cache_item = cache_item{name: tf.filepath.to_str(), in_use_flag: false, 
-                                ssi_flag: false, hash: ~"", data: ~[], count: 1, size: tf.fileSize};
-
-                            (*vec).push(new_cache_item);
-
+                        else if( (*vec)[i].name == tf.filepath.to_str() && !(*vec)[i].in_use_flag) {
+                            (*vec)[i].count += 1;
+                            found = true;
                         }
-                    //}
+                    }
+
+                    //If it isn't found, we will create a blank entry and enter basic info, and add the
+                    //data and md4 later
+                    if(!found) {
+
+                        println(fmt!("===== ADDING ITEM %?", tf.filepath.to_str()));
+
+                        let new_cache_item: cache_item = cache_item{name: tf.filepath.to_str(), in_use_flag: false, 
+                            ssi_flag: false, hash: ~"", data: ~[], count: 1, size: tf.fileSize};
+
+                        (*vec).push(new_cache_item);
+
+                    }
                 }
 
                 if(!serve_from_cache) {
@@ -298,35 +284,6 @@ fn main() {
                             //println(fmt!("finish file [%?]", tf.filepath));
 
                             println(fmt!("===== SERVING FROM DISK: %?", tf.filepath.to_str()));
-
-                            /*
-
-                            let md4_val = md4::md4_str(file_data);
-
-                            do shared_cache_list.write |vec| {
-
-                                let mut found_flag: bool = false;
-
-                                for i in range(0, (*vec).len()) {
-
-                                    if( (*vec)[i].name == tf.filepath.to_str() ) {
-
-                                        println("=====FOUND NAME");
-
-                                        found_flag = true;
-
-                                        (*vec)[i].in_use_flag = true;
-                                        (*vec)[i].data = file_data.to_owned();
-                                        (*vec)[i].hash = md4_val.to_owned();
-                                    }
-                                }
-
-                                if(!found_flag) {
-                                    println(fmt!("===== DID NOT FIND NAME FOR %?", tf.filepath.to_str()));
-                                }
-                            }
-
-                            */
 
                         }
                         Err(err) => {
@@ -439,7 +396,6 @@ fn main() {
 
                                 streamPriority = 1;
                             }
-
                             
                             //Get filetype in order to determine HTTP header type
                             let fileType = match file_path.filetype() {
@@ -455,7 +411,6 @@ fn main() {
 
                             stream.write(httpHeader.as_bytes());
                             stream.flush();
-
 
                             //Retrieve file info for additional latency fixes
                             let fileInfo = match std::rt::io::file::stat(file_path) {
@@ -481,8 +436,6 @@ fn main() {
                 },
                 None => ()
             }
-
-            
         }
     }
 }
