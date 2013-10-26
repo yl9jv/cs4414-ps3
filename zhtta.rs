@@ -72,18 +72,6 @@ struct cache_item {
     size: u64
 }
 
-impl cache_item {
-    fn le(&self, other: &cache_item) -> bool {
-        let mut retVal:bool = false;
-
-        if(self.count <= other.count) {
-            retVal = true;
-        }
-
-        retVal
-    }
-}
-
 fn le(this: &cache_item, other: &cache_item) -> bool {
         let mut retVal:bool = false;
 
@@ -103,12 +91,13 @@ fn main() {
     let (port, chan) = stream();
     let chan = SharedChan::new(chan);
 
+    //Variables pertaining to safe visitor counting
     let safe_count: ~[uint] = ~[0];
     let shared_visit = arc::RWArc::new(safe_count);
 
+    //Variables pertaining to cache and cache manager
     let cache_list: ~[cache_item] = ~[];
     let shared_cache_list = arc::RWArc::new(cache_list);
-
     let cache_manager_a = shared_cache_list.clone();
     let cache_manager_b = shared_cache_list.clone();
 
