@@ -253,14 +253,12 @@ fn main() {
                     //If it isn't found, we will create a blank entry and enter basic info, and add the
                     //data and md4 later
                     if(!found) {
-
                         println(fmt!("===== ADDING ITEM %?", tf.filepath.to_str()));
 
                         let new_cache_item: cache_item = cache_item{name: tf.filepath.to_str(), in_use_flag: false, 
                             ssi_flag: false, hash: ~"", data: ~[], count: 1, size: tf.fileSize};
 
                         (*vec).push(new_cache_item);
-
                     }
                 }
 
@@ -268,11 +266,7 @@ fn main() {
 
                     match io::read_whole_file(tf.filepath) { // killed if file size is larger than memory size.
                         Ok(file_data) => {
-                            //println(fmt!("begin serving file [%?]", tf.filepath));
-
                             tf.stream.write(file_data);
-                            //println(fmt!("finish file [%?]", tf.filepath));
-
                             println(fmt!("===== SERVING FROM DISK: %?", tf.filepath.to_str()));
 
                         }
@@ -398,7 +392,7 @@ fn main() {
 
                             //In order to optimize for the benchmark, we will send the HTTP header quickly before adding to the queue
                             let httpHeader: ~str = match fileNameSplit[fileNameSplit.len()-1] {
-                                ~"html" | ~"htm" | ~"php" => ~"HTTP/1.1 200 OK\r\nContent-Type: text/html; charset=UTF-8\r\n\r\n",
+                                ~"html" | ~"htm" | ~"php" => ~"Content-Type: text/html; charset=UTF-8\r\n\r\n",
                                 _ => ~"HTTP/1.1 200 OK\r\nContent-Type: application/octet-stream; charset=UTF-8\r\n\r\n"
                             };
 
