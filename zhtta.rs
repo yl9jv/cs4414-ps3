@@ -350,6 +350,11 @@ fn main() {
                         //println(fmt!("Request for path: \n%?", path));
                         
                         let file_path = ~os::getcwd().push(path.replace("/../", ""));
+
+
+                        //TO DO: Maybe replace this check to later on since this reduces our response time by
+                        //having to check the disk.
+
                         if !os::path_exists(file_path) || os::path_is_dir(file_path) {
                             //println(fmt!("Request received:\n%s", request_str));
                             let response: ~str = fmt!(
@@ -387,16 +392,13 @@ fn main() {
 
                                 streamPriority = 1;
                             }
-                            
-                            //Get filetype in order to determine HTTP header type
-                            let fileType = match file_path.filetype() {
-                                Some(s) => s,
-                                None => &""
-                            };
+
+                            let fileName: ~str = file_path.filename().unwrap().to_owned();
+                            let fileNameSplit: ~[~str] = fileName.split_iter('.').filter(|&x| x != "").map(|x| x.to_owned()).collect();
 
                             //In order to optimize for the benchmark, we will send the HTTP header quickly before adding to the queue
-                            let httpHeader: ~str = match fileType {
-                                ".html" | ".htm" | ".php" => ~"HTTP/1.1 200 OK\r\nContent-Type: text/html; charset=UTF-8\r\n\r\n",
+                            let httpHeader: ~str = match fileNameSplit[fileNameSplit.len()-1] {
+                                ~"html" | ~"htm" | ~"php" => ~"HTTP/1.1 200 OK\r\nContent-Type: text/html; charset=UTF-8\r\n\r\n",
                                 _ => ~"HTTP/1.1 200 OK\r\nContent-Type: application/octet-stream; charset=UTF-8\r\n\r\n"
                             };
 
