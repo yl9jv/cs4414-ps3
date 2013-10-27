@@ -104,22 +104,16 @@ fn main() {
     //CACHE UPDATE MANAGER (Manager B)
     //This will handle making sure that items in the cache are up-to-date in case they are changed
     do spawn {
-
         loop {
-
             do cache_manager_b.write |vec| {
-
                 for i in range(0, (*vec).len()) {
-
                     //If it is in the cache and in use, we will check to see if the file has been updated
                     if((*vec)[i].in_use_flag) {
-
                         let curr_path = ~path::Path((*vec)[i].name);
-                        if os::path_exists(curr_path) {
 
+                        if os::path_exists(curr_path) {
                             match io::read_whole_file(curr_path) {
                                     Ok(file_data) => {
-
                                         let temp_md4 = md4::md4_str(file_data.to_owned());
 
                                         if(temp_md4 != (*vec)[i].hash)
@@ -152,10 +146,8 @@ fn main() {
 
     //MAIN CACHE MANAGER (Manager A)
     do spawn {
-
         loop {
             do cache_manager_a.write |vec| {
-
                 //Quick sort sorts in-place, so we don't need to worry about memory overhead
                 //Just time overhead
                 sort::quick_sort((*vec), le);
@@ -163,20 +155,16 @@ fn main() {
                 let mut cache_remaining = MAX_CACHE_SIZE_BYTES;
 
                 for i in range(0, (*vec).len()) {
-
                     if((*vec)[i].size <= cache_remaining && !(*vec)[i].in_use_flag) {
-
                         let curr_path = ~path::Path((*vec)[i].name);
 
                         if os::path_exists(curr_path) {
-
                             let fileInfo = match std::rt::io::file::stat(curr_path) {
                                 Some(s) => s,
                                 None => fail!("Could not access file stats for cache")
                             };
 
                             if(fileInfo.size <= cache_remaining) {
-
                                 match io::read_whole_file(curr_path) {
                                     Ok(file_data) => {
 
@@ -229,11 +217,9 @@ fn main() {
                 let mut serve_from_cache: bool = false;
 
                 do shared_cache_list.write |vec| {
-
                     let mut found: bool = false;
 
                     for i in range(0, (*vec).len()) {
-
                         if( (*vec)[i].name == tf.filepath.to_str() && (*vec)[i].in_use_flag) {
                             serve_from_cache = true;
                             found = true;
@@ -263,7 +249,6 @@ fn main() {
                 }
 
                 if(!serve_from_cache) {
-
                     match io::read_whole_file(tf.filepath) { // killed if file size is larger than memory size.
                         Ok(file_data) => {
                             tf.stream.write(file_data);
@@ -318,12 +303,10 @@ fn main() {
 
             //We will use the cloned RWARC
             do child_arc.write |count_vec| {
-
                 let prev_count = (*count_vec).pop();
                 let new_count: uint = prev_count + 1;
 
                 actual_count = new_count;
-
                 (*count_vec).push(new_count);
             }
             
@@ -341,16 +324,10 @@ fn main() {
                     let req_group : ~[&str]= request_str.splitn_iter(' ', 3).collect();
                     if req_group.len() > 2 {
                         let path = req_group[1];
-                        //println(fmt!("Request for path: \n%?", path));
                         
                         let file_path = ~os::getcwd().push(path.replace("/../", ""));
 
-
-                        //TO DO: Maybe replace this check to later on since this reduces our response time by
-                        //having to check the disk.
-
                         if !os::path_exists(file_path) || os::path_is_dir(file_path) {
-                            //println(fmt!("Request received:\n%s", request_str));
                             let response: ~str = fmt!(
                                 "HTTP/1.1 200 OK\r\nContent-Type: text/html; charset=UTF-8\r\n\r\n
                                  <doctype !html><html><head><title>Hello, Rust!</title>
@@ -412,10 +389,8 @@ fn main() {
                             do child_add_vec.write |vec| {
                                 let msg = sm_port.recv();
                                 (*vec).push(msg); // enqueue new request.
-                                //println("add to queue");
                             }
                             child_chan.send(""); //notify the new arriving request.
-                            //println(fmt!("get file request: %?", file_path));
                         }
                     }
                     println!("connection terminates")
