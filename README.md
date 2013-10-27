@@ -55,3 +55,4 @@ Problem 7
 + Send header as soon as request is received. Currently gets file type by going to the HDD, perhaps can be modified so that it slices at the last '.' to avoid I/O overhead
 + Idea: Separate queue for cache and non-cache items
 + Idea: Optional command line argument to pass in cache size, cache refresh rate
++ Idea: Have some server parameters set by a config file, which can then be modified by issuing a special request via HTTP (remotely editing the config file, perhaps by creating a simple gash script)
