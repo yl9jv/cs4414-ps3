@@ -169,16 +169,33 @@ fn main() {
                                 match io::read_whole_file(curr_path) {
                                     Ok(file_data) => {
 
-                                        //NEED TO ADD CHECK IF IT HAS SSI
-                                        //PERHAPS EXCLUDE ALL SSI FROM CACHE?
-                                        //ADD TO IF: size < remaining, !in use, !ssi?
+                                        let fileName: ~str = curr_path.filename().unwrap().to_owned();
+                                        let fileNameSplit: ~[~str] = fileName.split_iter('.').filter(|&x| x != "").map(|x| x.to_owned()).collect();
 
-                                        (*vec)[i].data = file_data.to_owned();
-                                        (*vec)[i].size = fileInfo.size;
-                                        (*vec)[i].hash = md4::md4_str(file_data);
-                                        (*vec)[i].in_use_flag = true;
+                                        let is_html: bool = match fileNameSplit[fileNameSplit.len()-1] {
+                                            ~"html" | ~"htm" => true,
+                                            _ => false
+                                        };
 
-                                        cache_remaining = cache_remaining - fileInfo.size;
+                                        let mut has_ssi: bool = false;
+
+                                        //We will only check html files for server-side includes
+                                        if(is_html) {
+                                            has_ssi = std::str::from_utf8_slice(file_data).contains("<!--#exec cmd=\"");
+                                        }
+
+                                        if(!has_ssi) {
+                                            (*vec)[i].data = file_data.to_owned();
+                                            (*vec)[i].size = fileInfo.size;
+                                            (*vec)[i].hash = md4::md4_str(file_data);
+                                            (*vec)[i].in_use_flag = true;
+                                            cache_remaining = cache_remaining - fileInfo.size;
+                                        }
+                                        else {
+                                            (*vec)[i].in_use_flag = false;
+                                            (*vec)[i].data = ~[];
+                                        }
+
                                     }
                                     Err(err) => {
                                         println("ERROR IN UPDATE CACHE");
@@ -227,7 +244,7 @@ fn main() {
 
                             println(fmt!("===== SERVING FROM CACHE: %?", tf.filepath.to_str()));
 
-                            tf.stream.write(tf.httpHeader.as_bytes());
+                            //tf.stream.write(tf.httpHeader.as_bytes());
                             tf.stream.write((*vec)[i].data);
 
                             (*vec)[i].count += 1;
@@ -253,7 +270,7 @@ fn main() {
                 if(!serve_from_cache) {
                     match io::read_whole_file(tf.filepath) { // killed if file size is larger than memory size.
                         Ok(file_data) => {
-                            tf.stream.write(tf.httpHeader.as_bytes());
+                            //tf.stream.write(tf.httpHeader.as_bytes());
                             tf.stream.write(file_data);
                             println(fmt!("===== SERVING FROM DISK: %?", tf.filepath.to_str()));
 
@@ -376,8 +393,8 @@ fn main() {
                                 _ => ~"HTTP/1.1 200 OK\r\nContent-Type: application/octet-stream; charset=UTF-8\r\n\r\n"
                             };
 
-                            //stream.write(httpHeader.as_bytes());
-                            //stream.flush();
+                            stream.write(httpHeader.as_bytes());
+                            stream.flush();
 
                             //Retrieve file info for additional latency fixes
                             let fileInfo = match std::rt::io::file::stat(file_path) {
