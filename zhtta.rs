@@ -392,6 +392,7 @@ fn main() {
                     
                     //Since we are using a priority queue, we will use pop()
                     let tf = (*vec).pop();
+                    println(fmt!("===== DEQUEUEING: %?", tf.filepath.to_str()));
                     //println(fmt!("shift from queue, size: %ud", (*vec).len()));
                     sm_chan.send(tf); // send the request to send-response-task to serve.
                 }
