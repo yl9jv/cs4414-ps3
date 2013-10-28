@@ -410,8 +410,9 @@ fn main() {
     println(fmt!("Listening on %s:%d ...", ip.to_str(), PORT));
     let mut acceptor = socket.listen().unwrap();
     
-    loop {
-        let stream = acceptor.accept();
+    //loop {
+    for stream in acceptor.incoming() {
+        //let stream = acceptor.accept();
         let stream = Cell::new(stream);
         
         // Start a new task to handle the each connection
@@ -433,12 +434,12 @@ fn main() {
                 (*count_vec).push(new_count);
             }
             
-            let stream = stream.take();
+            let mut stream = stream.take();
 
-            match stream {
-                Some(s) => {
+            //match stream {
+            //    Some(s) => {
 
-                    let mut stream = s;
+            //        let mut stream = s;
 
                     let mut buf = [0, ..500];
                     stream.read(buf);
@@ -470,6 +471,7 @@ fn main() {
 
                             let mut streamPriority: int = 0;
 
+                            /*
                             //Retrieving the requesting IP address
                             let ipStr: ~str = match (stream).peer_name() {
                                 Some(pr) => pr.ip.to_str(),  
@@ -486,6 +488,7 @@ fn main() {
 
                                 streamPriority = 1;
                             }
+                            */
 
                             let fileName: ~str = file_path.filename().unwrap().to_owned();
                             let fileNameSplit: ~[~str] = fileName.split_iter('.').filter(|&x| x != "").map(|x| x.to_owned()).collect();
@@ -516,7 +519,7 @@ fn main() {
                                 }
                             }
 
-                            let msg: sched_msg = sched_msg{stream: Some(stream), filepath: file_path.clone(), topPriority: streamPriority, fileSize: fileInfo.size, httpHeader: httpHeader, inCache: file_in_cache};
+                            let msg: sched_msg = sched_msg{stream: stream, filepath: file_path.clone(), topPriority: streamPriority, fileSize: fileInfo.size, httpHeader: httpHeader, inCache: file_in_cache};
                             let (sm_port, sm_chan) = std::comm::stream();
                             sm_chan.send(msg);
                             
@@ -529,9 +532,9 @@ fn main() {
                     }
                     println!("connection terminates")
 
-                },
-                None => ()
-            }
+                //},
+                //None => ()
+            //}
         }
     }
 }
