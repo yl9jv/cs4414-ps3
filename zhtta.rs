@@ -304,6 +304,8 @@ fn main() {
                             let fileName: ~str = tf.filepath.filename().unwrap().to_owned();
                             let fileNameSplit: ~[~str] = fileName.split_iter('.').filter(|&x| x != "").map(|x| x.to_owned()).collect();
 
+                            println(fmt!("===== SERVING FROM DISK: %?", tf.filepath.to_str()));
+                            
                             match fileNameSplit[fileNameSplit.len()-1] {
                                 ~"html" | ~"htm" => {
 
@@ -344,7 +346,7 @@ fn main() {
                                 _ => {tf.stream.write(file_data);}
                             }
 
-                            println(fmt!("===== SERVING FROM DISK: %?", tf.filepath.to_str()));
+                            
 
                         }
                         Err(err) => {
