@@ -376,7 +376,7 @@ fn main() {
 
                             //In order to optimize for the benchmark, we will send the HTTP header quickly before adding to the queue
                             let httpHeader: ~str = match fileNameSplit[fileNameSplit.len()-1] {
-                                ~"html" | ~"htm" | ~"php" => ~"Content-Type: text/html; charset=UTF-8\r\n\r\n",
+                                ~"html" | ~"htm" | ~"php" => ~"HTTP/1.1 200 OK\r\nContent-Type: text/html; charset=UTF-8\r\n\r\n",
                                 _ => ~"HTTP/1.1 200 OK\r\nContent-Type: application/octet-stream; charset=UTF-8\r\n\r\n"
                             };
 
