@@ -96,7 +96,7 @@ Problem 7
 =========
 
 + Since httperf measures the response rate by the first byte received, the HTTP header is sent before sending the request to the request manager. 
-
++ The program can handle the security problem caused by dangerous request similar to "/./.././", which makes it possible to access any file on the host.
 
 + Idea: Separate queue for cache and non-cache items
 + Idea: Optional command line argument to pass in cache size, cache refresh rate
