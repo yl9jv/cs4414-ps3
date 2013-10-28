@@ -32,7 +32,6 @@ static IP: &'static str = "127.0.0.1";
 static MAX_CACHE_SIZE_BYTES: u64 = 50000000;
 static CACHE_MANAGER_A_RATE: u64 = 2000;
 static CACHE_MANAGER_B_RATE: u64 = 6000;
-static CACHE_MANAGER_B_INNER_RATE: u64 = 20;
 
 struct sched_msg {
     stream: Option<std::rt::io::net::tcp::TcpStream>,
@@ -139,9 +138,6 @@ fn main() {
                                 }
                         }
                     }
-
-                    //Added so that task does not hog RW lock. Need to modifiy to out of ARC?
-                    timer::sleep(CACHE_MANAGER_B_INNER_RATE);
                 }
             }
 
