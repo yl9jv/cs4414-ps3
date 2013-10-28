@@ -79,7 +79,8 @@ struct cache_item {
     hash: ~str,
     data: ~[u8],
     count: uint,
-    size: u64
+    size: u64,
+    modified: u64
 }
 
 fn le(this: &cache_item, other: &cache_item) -> bool {
@@ -143,20 +144,29 @@ fn main() {
                         if os::path_exists(curr_path) {
                             match io::read_whole_file(curr_path) {
                                     Ok(file_data) => {
-                                        let temp_md4 = md4::md4_str(file_data.to_owned());
+                                        
+                                        //let temp_md4 = md4::md4_str(file_data.to_owned());
 
-                                        if(temp_md4 != (*vec)[i].hash)
+                                        let fileInfo = match std::rt::io::file::stat(curr_path) {
+                                                Some(s) => s,
+                                                None => fail!("Could not access file stats for cache")
+                                        };
+
+                                        if(fileInfo.modified != (*vec)[i].modified)
                                         {
+                                            /*
                                             let fileInfo = match std::rt::io::file::stat(curr_path) {
                                                 Some(s) => s,
                                                 None => fail!("Could not access file stats for cache")
                                             };
+                                            */
 
                                             println(fmt!("===== UPDATING FILE: %?", (*vec)[i].name));
 
                                             (*vec)[i].data = file_data;
                                             (*vec)[i].size = fileInfo.size;
-                                            (*vec)[i].hash = temp_md4;
+                                            (*vec)[i].hash = ~"";
+                                            (*vec)[i].modified = fileInfo.modified;
                                         }
                                     }
                                     Err(err) => {
@@ -216,7 +226,8 @@ fn main() {
                                         if(!has_ssi) {
                                             (*vec)[i].data = file_data.to_owned();
                                             (*vec)[i].size = fileInfo.size;
-                                            (*vec)[i].hash = md4::md4_str(file_data);
+                                            //(*vec)[i].hash = md4::md4_str(file_data);
+                                            (*vec)[i].modified = fileInfo.modified;
                                             (*vec)[i].in_use_flag = true;
                                             cache_remaining = cache_remaining - fileInfo.size;
                                         }
@@ -290,7 +301,7 @@ fn main() {
                         println(fmt!("===== ADDING ITEM %?", tf.filepath.to_str()));
 
                         let new_cache_item: cache_item = cache_item{name: tf.filepath.to_str(), in_use_flag: false, 
-                            ssi_flag: false, hash: ~"", data: ~[], count: 1, size: tf.fileSize};
+                            ssi_flag: false, hash: ~"", data: ~[], count: 1, size: tf.fileSize, modified: 0};
 
                         (*vec).push(new_cache_item);
                     }
