@@ -303,7 +303,7 @@ fn main() {
                         let new_cache_item: cache_item = cache_item{name: tf.filepath.to_str(), in_use_flag: false, 
                             ssi_flag: false, hash: ~"", data: ~[], count: 1, size: tf.fileSize, modified: 0};
 
-                        (*vec).push(new_cache_item);
+                        //(*vec).push(new_cache_item);
                     }
                 }
 
@@ -358,6 +358,7 @@ fn main() {
                                     println(fmt!("===== STARTING TO SEND FROM DISK: %?", tf.filepath.to_str()));
 
 
+                                    /*
                                     let mut leftArr = file_data.clone();
                                     leftArr = leftArr.slice_to(leftArr.len()/2).to_owned();
 
@@ -368,6 +369,9 @@ fn main() {
                                     tf.stream.write(leftArr);
                                     println(fmt!("--- STARTING TO SEND RIGHT: %?", tf.filepath.to_str()));
                                     tf.stream.write(rightArr);
+                                    */
+
+                                    tf.stream.write(file_data);
 
                                     println(fmt!("===== ENDING TO SEND FROM DISK: %?", tf.filepath.to_str()));
                                 }
