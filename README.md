@@ -96,8 +96,4 @@ Problem 7
 =========
 
 + Since httperf measures the response rate by the first byte received, the HTTP header is sent before sending the request to the request manager. 
-
-
-+ Idea: Separate queue for cache and non-cache items
-+ Idea: Optional command line argument to pass in cache size, cache refresh rate
-+ Idea: Have some server parameters set by a config file, which can then be modified by issuing a special request via HTTP (remotely editing the config file, perhaps by creating a simple gash script)
++ Cache size and refresh rate can be set from an optional configuration file. If the file does not exist, default values are used. 
