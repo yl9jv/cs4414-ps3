@@ -30,9 +30,7 @@ use std::run;
 static PORT:    int = 4414;
 static IP: &'static str = "127.0.0.1";
 
-static MAX_CACHE_SIZE_BYTES: u64 = 50000000;
-static CACHE_MANAGER_A_RATE: u64 = 2000;
-static CACHE_MANAGER_B_RATE: u64 = 6000;
+static CONFIG_FILE: &'static str = "config.txt";
 
 struct sched_msg {
     stream: Option<std::rt::io::net::tcp::TcpStream>,
@@ -113,6 +111,24 @@ fn main() {
     let cache_manager_a = shared_cache_list.clone();
     let cache_manager_b = shared_cache_list.clone();
     let cache_child = shared_cache_list.clone();
+
+    let MAX_CACHE_SIZE_BYTES: u64;
+    let CACHE_MANAGER_A_RATE: u64;
+    let CACHE_MANAGER_B_RATE: u64 = 6000;
+
+
+    match io::read_whole_file_str(~PosixPath(CONFIG_FILE)) {
+        Ok(file) => {
+            let argv:~[~str] = file.split_iter('\n').filter_map(|x| if x != "" {Some(x.to_owned())} else {None}).to_owned_vec();
+            MAX_CACHE_SIZE_BYTES = std::u64::generated::parse_bytes(argv[0].as_bytes(), 10).unwrap();
+            CACHE_MANAGER_A_RATE = std::u64::generated::parse_bytes(argv[1].as_bytes(), 10).unwrap();
+        }
+        Err(err) => {
+            println!("using default parameter due to error {:s}", err);
+            MAX_CACHE_SIZE_BYTES = 50000000;
+            CACHE_MANAGER_A_RATE = 2000;
+        }
+    }
 
     //CACHE UPDATE MANAGER (Manager B)
     //This will handle making sure that items in the cache are up-to-date in case they are changed
