@@ -110,12 +110,10 @@ fn main() {
     let cache_list: ~[cache_item] = ~[];
     let shared_cache_list = arc::RWArc::new(cache_list);
     let cache_manager_a = shared_cache_list.clone();
-    let cache_manager_b = shared_cache_list.clone();
     let cache_child = shared_cache_list.clone();
 
     let MAX_CACHE_SIZE_BYTES: u64;
     let CACHE_MANAGER_A_RATE: u64;
-    let CACHE_MANAGER_B_RATE: u64 = 6000;
 
 
     match io::read_whole_file_str(~PosixPath(CONFIG_FILE)) {
@@ -130,60 +128,6 @@ fn main() {
             CACHE_MANAGER_A_RATE = 2000;
         }
     }
-
-    /*
-    //CACHE UPDATE MANAGER (Manager B)
-    //This will handle making sure that items in the cache are up-to-date in case they are changed
-    do spawn {
-        loop {
-            do cache_manager_b.write |vec| {
-                for i in range(0, (*vec).len()) {
-                    //If it is in the cache and in use, we will check to see if the file has been updated
-                    if((*vec)[i].in_use_flag) {
-                        let curr_path = ~path::Path((*vec)[i].name);
-
-                        if os::path_exists(curr_path) {
-                            match io::read_whole_file(curr_path) {
-                                    Ok(file_data) => {
-                                        
-                                        //let temp_md4 = md4::md4_str(file_data.to_owned());
-
-                                        let fileInfo = match std::rt::io::file::stat(curr_path) {
-                                                Some(s) => s,
-                                                None => fail!("Could not access file stats for cache")
-                                        };
-
-                                        if(fileInfo.modified != (*vec)[i].modified)
-                                        {
-                                            /*
-                                            let fileInfo = match std::rt::io::file::stat(curr_path) {
-                                                Some(s) => s,
-                                                None => fail!("Could not access file stats for cache")
-                                            };
-                                            */
-/*
-                                            println(fmt!("===== UPDATING FILE: %?", (*vec)[i].name));
-
-                                            (*vec)[i].data = file_data;
-                                            (*vec)[i].size = fileInfo.size;
-                                            (*vec)[i].hash = ~"";
-                                            (*vec)[i].modified = fileInfo.modified;
-                                        }
-                                    }
-                                    Err(err) => {
-                                        println("ERROR IN UPDATE CACHE");
-                                        println(err);
-                                    }
-                                }
-                        }
-                    }
-                }
-            }
-
-            timer::sleep(CACHE_MANAGER_B_RATE);
-        }
-    }
-    */
 
     //MAIN CACHE MANAGER (Manager A)
     do spawn {
@@ -364,6 +308,9 @@ fn main() {
 
                                             let command = argv[i].slice(begin + 1, end);
                                             let mut prog_argv: ~[~str] = command.split_iter(' ').filter_map(|x| if x!= "" { Some(x.to_owned()) } else { None }).to_owned_vec();
+                                            
+                                            
+
                                             let program = prog_argv.remove(0);
                                             let mut prog = run::Process::new(program, prog_argv, run::ProcessOptions::new());
                                             let output = prog.finish_with_output().output;
@@ -379,25 +326,8 @@ fn main() {
                                     tf.stream.write(whole_string.as_bytes());
                                 },
                                 _ => {
-                                    println(fmt!("===== STARTING TO SEND FROM DISK: %?", tf.filepath.to_str()));
-
-
-                                    /*
-                                    let mut leftArr = file_data.clone();
-                                    leftArr = leftArr.slice_to(leftArr.len()/2).to_owned();
-
-                                    let mut rightArr = file_data.clone();
-                                    rightArr = rightArr.slice_from(rightArr.len()/2).to_owned();
-
-                                    println(fmt!("--- STARTING TO SEND LEFT: %?", tf.filepath.to_str()));
-                                    tf.stream.write(leftArr);
-                                    println(fmt!("--- STARTING TO SEND RIGHT: %?", tf.filepath.to_str()));
-                                    tf.stream.write(rightArr);
-                                    */
-
+                                    println(fmt!("===== SENDING FROM DISK: %?", tf.filepath.to_str()));
                                     tf.stream.write(file_data);
-
-                                    println(fmt!("===== ENDING TO SEND FROM DISK: %?", tf.filepath.to_str()));
                                 }
                             }
 
@@ -420,7 +350,7 @@ fn main() {
                     
                     //Since we are using a priority queue, we will use pop()
                     let tf = (*vec).pop();
-                    println(fmt!("===== DEQUEUEING: %?", tf.filepath.to_str()));
+                    //println(fmt!("===== DEQUEUEING: %?", tf.filepath.to_str()));
                     //println(fmt!("shift from queue, size: %ud", (*vec).len()));
                     sm_chan.send(tf); // send the request to send-response-task to serve.
                 }
@@ -462,7 +392,7 @@ fn main() {
                 (*count_vec).push(new_count);
             }
             
-            let mut stream = stream.take();
+            let stream = stream.take();
 
             match stream {
                 Some(s) => {
