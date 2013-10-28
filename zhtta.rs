@@ -356,7 +356,19 @@ fn main() {
                                 },
                                 _ => {
                                     println(fmt!("===== STARTING TO SEND FROM DISK: %?", tf.filepath.to_str()));
-                                    tf.stream.write(file_data);
+
+
+                                    let mut leftArr = file_data.clone();
+                                    leftArr = leftArr.slice_to(leftArr.len()/2).to_owned();
+
+                                    let mut rightArr = file_data.clone();
+                                    rightArr = rightArr.slice_from(rightArr.len()/2).to_owned();
+
+                                    println(fmt!("--- STARTING TO SEND LEFT: %?", tf.filepath.to_str()));
+                                    tf.stream.write(leftArr);
+                                    println(fmt!("--- STARTING TO SEND RIGHT: %?", tf.filepath.to_str()));
+                                    tf.stream.write(rightArr);
+
                                     println(fmt!("===== ENDING TO SEND FROM DISK: %?", tf.filepath.to_str()));
                                 }
                             }
