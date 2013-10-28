@@ -124,7 +124,7 @@ fn main() {
         }
         Err(err) => {
             println!("using default parameter due to error {:s}", err);
-            MAX_CACHE_SIZE_BYTES = 50000000;
+            MAX_CACHE_SIZE_BYTES = 2500000;
             CACHE_MANAGER_A_RATE = 2000;
         }
     }
@@ -326,7 +326,6 @@ fn main() {
                                     tf.stream.write(whole_string.as_bytes());
                                 },
                                 _ => {
-                                    println(fmt!("===== SENDING FROM DISK: %?", tf.filepath.to_str()));
                                     tf.stream.write(file_data);
                                 }
                             }
