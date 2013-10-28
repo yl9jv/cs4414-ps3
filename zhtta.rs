@@ -327,7 +327,7 @@ fn main() {
                         let new_cache_item: cache_item = cache_item{name: tf.filepath.to_str(), in_use_flag: false, 
                             ssi_flag: false, hash: ~"", data: ~[], count: 1, size: tf.fileSize, modified: 0};
 
-                        //(*vec).push(new_cache_item);
+                        (*vec).push(new_cache_item);
                     }
                 }
 
