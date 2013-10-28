@@ -25,6 +25,7 @@ use extra::priority_queue;
 use extra::md4;
 use extra::sort;
 use std::path;
+use std::run;
 
 static PORT:    int = 4414;
 static IP: &'static str = "127.0.0.1";
@@ -184,6 +185,7 @@ fn main() {
                                             has_ssi = std::str::from_utf8_slice(file_data).contains("<!--#exec cmd=\"");
                                         }
 
+                                        //Files with server-side includes will never be included in the cache
                                         if(!has_ssi) {
                                             (*vec)[i].data = file_data.to_owned();
                                             (*vec)[i].size = fileInfo.size;
@@ -195,8 +197,8 @@ fn main() {
                                             (*vec)[i].in_use_flag = false;
                                             (*vec)[i].data = ~[];
                                         }
-
                                     }
+                                    
                                     Err(err) => {
                                         println("ERROR IN UPDATE CACHE");
                                         println(err);
@@ -271,7 +273,50 @@ fn main() {
                     match io::read_whole_file(tf.filepath) { // killed if file size is larger than memory size.
                         Ok(file_data) => {
                             //tf.stream.write(tf.httpHeader.as_bytes());
-                            tf.stream.write(file_data);
+
+                            let fileName: ~str = tf.filepath.filename().unwrap().to_owned();
+                            let fileNameSplit: ~[~str] = fileName.split_iter('.').filter(|&x| x != "").map(|x| x.to_owned()).collect();
+
+                            match fileNameSplit[fileNameSplit.len()-1] {
+                                ~"html" | ~"htm" => {
+
+                                    //We will only run server-side includes for html files
+
+                                    let file_as_str = std::str::from_utf8(file_data);
+                                    let argv: ~[~str] = file_as_str.split_iter('\n').filter_map(|x| if x != "" { Some(x.to_owned()) } else { None }).to_owned_vec();
+                                    let mut whole_string: ~str = ~"";
+
+                                    for i in range(0, argv.len()) {
+                                        if argv[i].starts_with("<!--#exec cmd=\"") && argv[i].ends_with("\" -->") {
+                                            let begin = match argv[i].find('\"') {
+                                                Some(index) => index,
+                                                None => 0
+                                            };
+
+                                            let end = match argv[i].rfind('\"') {
+                                                Some(index) => index,
+                                                None => 0
+                                            };
+
+                                            let command = argv[i].slice(begin + 1, end);
+                                            let mut prog_argv: ~[~str] = command.split_iter(' ').filter_map(|x| if x!= "" { Some(x.to_owned()) } else { None }).to_owned_vec();
+                                            let program = prog_argv.remove(0);
+                                            let mut prog = run::Process::new(program, prog_argv, run::ProcessOptions::new());
+                                            let output = prog.finish_with_output().output;
+                                            let output_str = std::str::from_utf8(output);
+                                            whole_string = whole_string + output_str.slice(0, output_str.char_len() - 1);
+                                        }
+                                        else {
+                                            whole_string = whole_string + argv[i];
+                                        }
+
+                                        whole_string = whole_string + "\r\n";
+                                    }
+                                    tf.stream.write(whole_string.as_bytes());
+                                },
+                                _ => {tf.stream.write(file_data);}
+                            }
+
                             println(fmt!("===== SERVING FROM DISK: %?", tf.filepath.to_str()));
 
                         }
