@@ -39,11 +39,17 @@ struct sched_msg {
     filepath: ~std::path::PosixPath,
     topPriority: int,
     fileSize: u64,
-    httpHeader: ~str
+    httpHeader: ~str,
+    inCache: bool
 }
 
 impl Ord for sched_msg {
     fn lt(&self, other: &sched_msg) -> bool {
+
+        //Request priority ordering:
+        // 1. Geographic (Charlottesville and localhost first)
+        // 2. If the file is in the cache
+        // 3. File size (smaller = better)
 
         let mut retVal:bool = false;
 
@@ -53,9 +59,13 @@ impl Ord for sched_msg {
         }
         else if (self.topPriority == other.topPriority) {
 
-            //If the two have equal priorities, then we will sort by file size
-            //Smaller files get a higher priority
-            if (self.fileSize > other.fileSize) {
+            if (self.inCache && !other.inCache) {
+                retVal = false;
+            }
+            else if( !self.inCache && other.inCache) {
+                retVal = true;
+            }
+            else if(self.fileSize > other.fileSize) {
                 retVal = true;
             }
         }
@@ -102,6 +112,7 @@ fn main() {
     let shared_cache_list = arc::RWArc::new(cache_list);
     let cache_manager_a = shared_cache_list.clone();
     let cache_manager_b = shared_cache_list.clone();
+    let cache_child = shared_cache_list.clone();
 
     //CACHE UPDATE MANAGER (Manager B)
     //This will handle making sure that items in the cache are up-to-date in case they are changed
@@ -198,7 +209,7 @@ fn main() {
                                             (*vec)[i].data = ~[];
                                         }
                                     }
-                                    
+
                                     Err(err) => {
                                         println("ERROR IN UPDATE CACHE");
                                         println(err);
@@ -361,6 +372,7 @@ fn main() {
         let child_chan = chan.clone();
         let child_add_vec = add_vec.clone();
         let child_arc = shared_visit.clone();
+        let child_cache_access = cache_child.clone();
 
         do spawn {
 
@@ -447,7 +459,18 @@ fn main() {
                                 None => fail!("Could not access file stats")
                             };
 
-                            let msg: sched_msg = sched_msg{stream: Some(stream), filepath: file_path.clone(), topPriority: streamPriority, fileSize: fileInfo.size, httpHeader: httpHeader};
+                            let mut file_in_cache: bool = false;
+
+                            //Check to see if the file is in the cache for priority purposes
+                            do child_cache_access.write |vec| {
+                                for i in range(0, (*vec).len()) {
+                                    if( (*vec)[i].name == file_path.to_str()) {
+                                        file_in_cache = true;
+                                    }
+                                }
+                            }
+
+                            let msg: sched_msg = sched_msg{stream: Some(stream), filepath: file_path.clone(), topPriority: streamPriority, fileSize: fileInfo.size, httpHeader: httpHeader, inCache: file_in_cache};
                             let (sm_port, sm_chan) = std::comm::stream();
                             sm_chan.send(msg);
                             
