@@ -131,6 +131,7 @@ fn main() {
         }
     }
 
+    /*
     //CACHE UPDATE MANAGER (Manager B)
     //This will handle making sure that items in the cache are up-to-date in case they are changed
     do spawn {
@@ -160,7 +161,7 @@ fn main() {
                                                 None => fail!("Could not access file stats for cache")
                                             };
                                             */
-
+/*
                                             println(fmt!("===== UPDATING FILE: %?", (*vec)[i].name));
 
                                             (*vec)[i].data = file_data;
@@ -182,6 +183,7 @@ fn main() {
             timer::sleep(CACHE_MANAGER_B_RATE);
         }
     }
+    */
 
     //MAIN CACHE MANAGER (Manager A)
     do spawn {
@@ -246,6 +248,28 @@ fn main() {
                         }
                     }
                     else if((*vec)[i].size <= cache_remaining && (*vec)[i].in_use_flag) {
+
+                        let curr_path = ~path::Path((*vec)[i].name);
+
+                        let fileInfo = match std::rt::io::file::stat(curr_path) {
+                                Some(s) => s,
+                                None => fail!("Could not access file stats for cache")
+                        };
+
+                        if(fileInfo.modified != (*vec)[i].modified) {
+
+                            if(fileInfo.size <= cache_remaining) {
+                                (*vec)[i].size = fileInfo.size;
+                                (*vec)[i].modified = fileInfo.modified;
+
+                                (*vec)[i].data = match io::read_whole_file(curr_path) {
+                                    Ok(file_data) => file_data,
+                                    Err(err) => ~[]
+                                };
+                            }
+
+                        }
+
                         cache_remaining = cache_remaining - (*vec)[i].size;
                     }
                     else if((*vec)[i].size > cache_remaining) {
