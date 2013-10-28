@@ -32,12 +32,14 @@ static IP: &'static str = "127.0.0.1";
 static MAX_CACHE_SIZE_BYTES: u64 = 50000000;
 static CACHE_MANAGER_A_RATE: u64 = 2000;
 static CACHE_MANAGER_B_RATE: u64 = 6000;
+static CACHE_MANAGER_B_INNER_RATE: u64 = 20;
 
 struct sched_msg {
     stream: Option<std::rt::io::net::tcp::TcpStream>,
     filepath: ~std::path::PosixPath,
     topPriority: int,
-    fileSize: u64
+    fileSize: u64,
+    httpHeader: ~str
 }
 
 impl Ord for sched_msg {
@@ -137,6 +139,9 @@ fn main() {
                                 }
                         }
                     }
+
+                    //Added so that task does not hog RW lock. Need to modifiy to out of ARC?
+                    timer::sleep(CACHE_MANAGER_B_INNER_RATE);
                 }
             }
 
@@ -226,6 +231,7 @@ fn main() {
 
                             println(fmt!("===== SERVING FROM CACHE: %?", tf.filepath.to_str()));
 
+                            tf.stream.write(tf.httpHeader.as_bytes());
                             tf.stream.write((*vec)[i].data);
 
                             (*vec)[i].count += 1;
@@ -251,6 +257,7 @@ fn main() {
                 if(!serve_from_cache) {
                     match io::read_whole_file(tf.filepath) { // killed if file size is larger than memory size.
                         Ok(file_data) => {
+                            tf.stream.write(tf.httpHeader.as_bytes());
                             tf.stream.write(file_data);
                             println(fmt!("===== SERVING FROM DISK: %?", tf.filepath.to_str()));
 
@@ -373,8 +380,8 @@ fn main() {
                                 _ => ~"HTTP/1.1 200 OK\r\nContent-Type: application/octet-stream; charset=UTF-8\r\n\r\n"
                             };
 
-                            stream.write(httpHeader.as_bytes());
-                            stream.flush();
+                            //stream.write(httpHeader.as_bytes());
+                            //stream.flush();
 
                             //Retrieve file info for additional latency fixes
                             let fileInfo = match std::rt::io::file::stat(file_path) {
@@ -382,7 +389,7 @@ fn main() {
                                 None => fail!("Could not access file stats")
                             };
 
-                            let msg: sched_msg = sched_msg{stream: Some(stream), filepath: file_path.clone(), topPriority: streamPriority, fileSize: fileInfo.size};
+                            let msg: sched_msg = sched_msg{stream: Some(stream), filepath: file_path.clone(), topPriority: streamPriority, fileSize: fileInfo.size, httpHeader: httpHeader};
                             let (sm_port, sm_chan) = std::comm::stream();
                             sm_chan.send(msg);
                             
