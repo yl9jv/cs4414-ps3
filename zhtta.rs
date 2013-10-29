@@ -22,7 +22,6 @@ use std::{os, str, io};
 use extra::arc;
 use std::comm::*;
 use extra::priority_queue;
-use extra::md4;
 use extra::sort;
 use std::path;
 use std::run;
@@ -208,7 +207,7 @@ fn main() {
 
                                 (*vec)[i].data = match io::read_whole_file(curr_path) {
                                     Ok(file_data) => file_data,
-                                    Err(err) => ~[]
+                                    _ => ~[]
                                 };
                             }
 
@@ -405,8 +404,13 @@ fn main() {
                     let req_group : ~[&str]= request_str.splitn_iter(' ', 3).collect();
                     if req_group.len() > 2 {
                         let path = req_group[1];
-                        
-                        let file_path = ~os::getcwd().push(path.replace("/../", ""));
+
+                        let mut safe_path = path.replace("/../", "");
+                        while safe_path.contains("/../") {
+                            safe_path = safe_path.replace("/../", "");
+                        }
+
+                        let file_path = ~os::getcwd().push(safe_path);
 
                         if !os::path_exists(file_path) || os::path_is_dir(file_path) {
                             let response: ~str = fmt!(
