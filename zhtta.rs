@@ -308,9 +308,13 @@ fn main() {
                                             let command = argv[i].slice(begin + 1, end);
                                             let mut prog_argv: ~[~str] = command.split_iter(' ').filter_map(|x| if x!= "" { Some(x.to_owned()) } else { None }).to_owned_vec();
                                             
-                                            
+                                            let mut program = prog_argv.remove(0);
 
-                                            let program = prog_argv.remove(0);
+                                            program = match program {
+                                                ~"gash" => ~"./gash",
+                                                _ => program
+                                            };
+
                                             let mut prog = run::Process::new(program, prog_argv, run::ProcessOptions::new());
                                             let output = prog.finish_with_output().output;
                                             let output_str = std::str::from_utf8(output);
