@@ -74,8 +74,6 @@ impl Ord for sched_msg {
 struct cache_item {
     name: ~str,
     in_use_flag: bool,
-    ssi_flag: bool,
-    hash: ~str,
     data: ~[u8],
     count: uint,
     size: u64,
@@ -132,8 +130,10 @@ fn main() {
     do spawn {
         loop {
             do cache_manager_a.write |vec| {
-                //Quick sort sorts in-place, so we don't need to worry about memory overhead
-                //Just time overhead
+                //Quick sort sorts in-place, so we don't need to worry about memory overhead, just time overhead
+                //which is quite small. Here we are caching files with the highest historic request count
+                //which may not be optimal. A possible solution would be to have the count decay with time
+                //so that recent requests have more weight.
                 sort::quick_sort((*vec), le);
 
                 let mut cache_remaining = MAX_CACHE_SIZE_BYTES;
@@ -171,7 +171,6 @@ fn main() {
                                         if(!has_ssi) {
                                             (*vec)[i].data = file_data.to_owned();
                                             (*vec)[i].size = fileInfo.size;
-                                            //(*vec)[i].hash = md4::md4_str(file_data);
                                             (*vec)[i].modified = fileInfo.modified;
                                             (*vec)[i].in_use_flag = true;
                                             cache_remaining = cache_remaining - fileInfo.size;
@@ -251,7 +250,6 @@ fn main() {
 
                             println(fmt!("===== SERVING FROM CACHE: %?", tf.filepath.to_str()));
 
-                            //tf.stream.write(tf.httpHeader.as_bytes());
                             tf.stream.write((*vec)[i].data);
 
                             (*vec)[i].count += 1;
@@ -263,12 +261,12 @@ fn main() {
                     }
 
                     //If it isn't found, we will create a blank entry and enter basic info, and add the
-                    //data and md4 later
+                    //data and time modified later (handled by the cache manager)
                     if(!found) {
                         println(fmt!("===== ADDING ITEM %?", tf.filepath.to_str()));
 
                         let new_cache_item: cache_item = cache_item{name: tf.filepath.to_str(), in_use_flag: false, 
-                            ssi_flag: false, hash: ~"", data: ~[], count: 1, size: tf.fileSize, modified: 0};
+                            data: ~[], count: 1, size: tf.fileSize, modified: 0};
 
                         (*vec).push(new_cache_item);
                     }
@@ -277,8 +275,6 @@ fn main() {
                 if(!serve_from_cache) {
                     match io::read_whole_file(tf.filepath) { // killed if file size is larger than memory size.
                         Ok(file_data) => {
-                            //tf.stream.write(tf.httpHeader.as_bytes());
-
                             let fileName: ~str = tf.filepath.filename().unwrap().to_owned();
                             let fileNameSplit: ~[~str] = fileName.split_iter('.').filter(|&x| x != "").map(|x| x.to_owned()).collect();
 
@@ -288,6 +284,8 @@ fn main() {
                                 ~"html" | ~"htm" => {
 
                                     //We will only run server-side includes for html files
+                                    //This is a design decision, and could easily be expanded to other text files.
+                                    //However, we want to avoid it for large binary files, due to the performance hit
 
                                     let file_as_str = std::str::from_utf8(file_data);
                                     let argv: ~[~str] = file_as_str.split_iter('\n').filter_map(|x| if x != "" { Some(x.to_owned()) } else { None }).to_owned_vec();
@@ -332,9 +330,6 @@ fn main() {
                                     tf.stream.write(file_data);
                                 }
                             }
-
-                            
-
                         }
                         Err(err) => {
                             println("ERROR IN SEND");
@@ -349,11 +344,8 @@ fn main() {
             port.recv(); // wait for arrving notification
             do take_vec.write |vec| {
                 if ((*vec).len() > 0) {
-                    
                     //Since we are using a priority queue, we will use pop()
                     let tf = (*vec).pop();
-                    //println(fmt!("===== DEQUEUEING: %?", tf.filepath.to_str()));
-                    //println(fmt!("shift from queue, size: %ud", (*vec).len()));
                     sm_chan.send(tf); // send the request to send-response-task to serve.
                 }
             }
@@ -371,7 +363,8 @@ fn main() {
     let mut acceptor = socket.listen().unwrap();
     
     loop {
-    //for stream in acceptor.incoming() {
+        //We are using a different looping mechanism to get the acceptor streams
+        //Since this method allows us to access the IP address of the client easily
         let stream = acceptor.accept();
         let stream = Cell::new(stream);
         
@@ -382,7 +375,6 @@ fn main() {
         let child_cache_access = cache_child.clone();
 
         do spawn {
-
             let mut actual_count:uint = 0;
 
             //We will use the cloned RWARC
@@ -398,10 +390,9 @@ fn main() {
 
             match stream {
                 Some(s) => {
-
                     let mut stream = s;
-
                     let mut buf = [0, ..500];
+
                     stream.read(buf);
                     let request_str = str::from_utf8(buf);
                     
@@ -433,10 +424,8 @@ fn main() {
                         }
                         else {
                             // Requests scheduling
-
                             let mut streamPriority: int = 0;
 
-                            
                             //Retrieving the requesting IP address
                             let ipStr: ~str = match (stream).peer_name() {
                                 Some(pr) => pr.ip.to_str(),  
@@ -454,7 +443,6 @@ fn main() {
                                 streamPriority = 1;
                             }
                             
-
                             let fileName: ~str = file_path.filename().unwrap().to_owned();
                             let fileNameSplit: ~[~str] = fileName.split_iter('.').filter(|&x| x != "").map(|x| x.to_owned()).collect();
 
@@ -467,7 +455,7 @@ fn main() {
                             stream.write(httpHeader.as_bytes());
                             stream.flush();
 
-                            //Retrieve file info for additional latency fixes
+                            //Retrieve file info so that file size info can be taken into account for priority queue
                             let fileInfo = match std::rt::io::file::stat(file_path) {
                                 Some(s) => s,
                                 None => fail!("Could not access file stats")
@@ -476,6 +464,8 @@ fn main() {
                             let mut file_in_cache: bool = false;
 
                             //Check to see if the file is in the cache for priority purposes
+                            //Although a hashtable would have been good for this, we need to order the
+                            //list by historic count in order to decide which files to cache
                             do child_cache_access.write |vec| {
                                 for i in range(0, (*vec).len()) {
                                     if( (*vec)[i].name == file_path.to_str()) {
