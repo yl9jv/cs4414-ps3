@@ -30,6 +30,8 @@ static PORT:    int = 4414;
 static IP: &'static str = "127.0.0.1";
 
 static CONFIG_FILE: &'static str = "config.txt";
+static DEFAULT_CACHE_SIZE_BYTES: u64 = 2500000;
+static DEFAULT_CACHE_REFRESH_RATE_MILLIS: u64 = 2000;
 
 struct sched_msg {
     stream: Option<std::rt::io::net::tcp::TcpStream>,
@@ -121,12 +123,12 @@ fn main() {
         }
         Err(err) => {
             println!("using default parameter due to error {:s}", err);
-            MAX_CACHE_SIZE_BYTES = 2500000;
-            CACHE_MANAGER_A_RATE = 2000;
+            MAX_CACHE_SIZE_BYTES = DEFAULT_CACHE_SIZE_BYTES;
+            CACHE_MANAGER_A_RATE = DEFAULT_CACHE_REFRESH_RATE_MILLIS;
         }
     }
 
-    //MAIN CACHE MANAGER (Manager A)
+    //Cache manager
     do spawn {
         loop {
             do cache_manager_a.write |vec| {
@@ -209,7 +211,6 @@ fn main() {
                                     _ => ~[]
                                 };
                             }
-
                         }
 
                         cache_remaining = cache_remaining - (*vec)[i].size;
@@ -218,7 +219,6 @@ fn main() {
                         (*vec)[i].in_use_flag = false;
                         (*vec)[i].data = ~[];
                     }
-
                 }
             }
 
