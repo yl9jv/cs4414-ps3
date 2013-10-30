@@ -58,7 +58,19 @@ If an html file contains an SSI, the command is stripped in order to determine t
 Problem 5
 =========
 
-Need to address issues involving httperf segfault on Mac OS. 
+All tests were run using the Ubuntou VM with 4gb of memory allocated. Note: We noticed large differences in results if the same test was run a second time (perhaps because the operating system's own cache manager had already loaded some of the files into its own cache). Therefore, the VM was restarted between each test to maintain consistency. The baseline is Weilin's starting code.
+
+We ran Weilin's 60-file test with the following parameters:
+
+```
+httperf --server localhost --port 4414 --rate 60 --num-conns 60 --wlog=y,./test60.log --verbose
+```
+
+In all cases, the tests were executed with zero errors with the following results:
+
+![alt text](http://i.imgur.com/lS7bCw8.png "Test Duration")
+![alt text](http://i.imgur.com/v1ghSOf.png "Average Response Time")
+
 
 Problem 6
 =========
